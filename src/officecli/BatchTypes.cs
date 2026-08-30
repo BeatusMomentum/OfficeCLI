@@ -167,10 +167,12 @@ public class BatchItem
     public string? Xml { get; set; }
     // NEWLINE-SEMANTICS-V2: dumps are versioned via a leading
     // {"command":"meta","dumpVersion":2} item. v2 encodes soft line breaks
-    // as '\v' in text props ('\n' means a paragraph boundary); dumps
-    // WITHOUT a meta item are legacy v1, where '\n' meant a soft break —
-    // BatchCompat rewrites those on replay so old dump files keep restoring
-    // the exact original structure.
+    // as '\v' in text props ('\n' means a paragraph boundary). A batch that
+    // EXPLICITLY declares a version below 2 opts back into the pre-v2 reading
+    // and BatchCompat rewrites its '\n' to '\v' on replay; a batch with NO
+    // meta item follows current semantics, because a hand-written batch
+    // carries no meta either and reading those as legacy made one batch item
+    // behave differently from the identical single command.
     public int? DumpVersion { get; set; }
 
     internal static readonly HashSet<string> KnownFields = new(StringComparer.OrdinalIgnoreCase)
