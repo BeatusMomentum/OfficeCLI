@@ -30,6 +30,15 @@ public static class IssueSubtypes
     /// because Excel can adapt their display to the available width. Format
     /// bucket, Warning.</summary>
     public const string NumericOverflow = "numeric_overflow";
+    /// <summary>xlsx-only: a visible General-formatted numeric cell whose value
+    /// needs more than 11 significant digits. Excel's General display caps
+    /// there and switches to scientific notation REGARDLESS of column width,
+    /// so the delivered document shows a rounded number with no visual cue and
+    /// widening the column does not fix it — the remedy is an explicit number
+    /// format. Disjoint from <see cref="NumericOverflow"/>, which covers the
+    /// opposite case (an explicit format that cannot fit the column).
+    /// Format bucket, Warning.</summary>
+    public const string GeneralPrecisionLoss = "general_precision_loss";
     /// <summary>pptx-only: notesSlide raw-set passthrough references an
     /// rId (<c>r:embed</c> / <c>r:link</c>) the dump pass cannot reproduce
     /// on the replay target (e.g. a non-image rel attached to a NotesSlidePart
@@ -72,7 +81,7 @@ public static class IssueSubtypes
         SlideFieldNotEvaluated, NotesUnresolvedRid, LowContrast,
         ChartSeriesRefMissingSheet, ChartCacheStale,
         DefinedNameBroken, DefinedNameTargetMissing,
-        BrokenPartRef, NumericOverflow,
+        BrokenPartRef, NumericOverflow, GeneralPrecisionLoss,
     };
 
     /// <summary>Subtypes that require an exact-name request rather than being

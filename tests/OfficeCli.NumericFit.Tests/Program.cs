@@ -8,9 +8,12 @@ using OfficeCli.Core;
 using OfficeCli.Handlers;
 
 const string NumericOverflowSubtype = "numeric_overflow";
+const string GeneralPrecisionSubtype = "general_precision_loss";
 
 var standardPath = Path.Combine(Path.GetTempPath(), $"officecli-numeric-fit-{Guid.NewGuid():N}.xlsx");
 var date1904Path = Path.Combine(Path.GetTempPath(), $"officecli-numeric-fit-1904-{Guid.NewGuid():N}.xlsx");
+var generalPath = Path.Combine(Path.GetTempPath(), $"officecli-general-precision-{Guid.NewGuid():N}.xlsx");
+var stylelessPath = Path.Combine(Path.GetTempPath(), $"officecli-general-styleless-{Guid.NewGuid():N}.xlsx");
 try
 {
     CreateStandardFixture(standardPath);
@@ -19,12 +22,20 @@ try
     CreateDate1904Fixture(date1904Path);
     VerifyDate1904Workbook(date1904Path);
 
+    CreateGeneralPrecisionFixture(generalPath);
+    VerifyGeneralPrecisionWorkbook(generalPath);
+
+    CreateStylelessFixture(stylelessPath);
+    VerifyStylelessWorkbook(stylelessPath);
+
     Console.WriteLine("XLSX numeric-fit issue tests passed.");
 }
 finally
 {
     if (File.Exists(standardPath)) File.Delete(standardPath);
     if (File.Exists(date1904Path)) File.Delete(date1904Path);
+    if (File.Exists(generalPath)) File.Delete(generalPath);
+    if (File.Exists(stylelessPath)) File.Delete(stylelessPath);
 }
 
 static void VerifyStandardWorkbook(string path)
@@ -431,4 +442,140 @@ static void AssertPaths(IEnumerable<string> expected, IEnumerable<string> actual
 static void Assert(bool condition, string message)
 {
     if (!condition) throw new InvalidOperationException(message);
+}
+
+// ── general_precision_loss ────────────────────────────────────────────────
+// Excel's General display caps at 11 significant digits and falls back to
+// scientific notation past that, REGARDLESS of column width. Verified against
+// desktop Excel at width 20: 11 digits render in full, 12+ become 1.23457E+11.
+
+static void CreateGeneralPrecisionFixture(string path)
+{
+    using var doc = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook);
+    var wbPart = doc.AddWorkbookPart();
+    wbPart.Workbook = new Workbook();
+    var stylesPart = wbPart.AddNewPart<WorkbookStylesPart>();
+    stylesPart.Stylesheet = new Stylesheet(
+        new Fonts(new Font(new FontSize { Val = 11 })) { Count = 1 },
+        new Fills(new Fill(new PatternFill { PatternType = PatternValues.None })) { Count = 1 },
+        new Borders(new Border()) { Count = 1 },
+        new CellFormats(
+            new CellFormat(),                                        // 0: General
+            new CellFormat { NumberFormatId = 1, ApplyNumberFormat = true }) // 1: "0"
+        { Count = 2 });
+    stylesPart.Stylesheet.Save();
+
+    var wsPart = wbPart.AddNewPart<WorksheetPart>();
+    var row = new Row { RowIndex = 1 };
+    // Under the 11-digit cap: General shows these in full.
+    row.Append(NumberCell("A1", "1234567890"));        // 10 digits
+    row.Append(NumberCell("B1", "12345678901"));       // 11 digits — boundary, clean
+    // Past the cap with a 12+ digit integer part: scientific, no width fixes it.
+    row.Append(NumberCell("C1", "123456789012"));      // 12 digits
+    row.Append(NumberCell("D1", "1234567890123"));     // 13 digits
+    row.Append(NumberCell("E1", "123456789012345"));   // 15 digits — Excel's storage limit
+    // Float noise below 1e11: General rounds to 11 significant digits and renders
+    // 46551.3 positionally, so these must NOT be reported.
+    row.Append(NumberCell("F1", "46551.299999999996"));
+    row.Append(NumberCell("G1", "2887816940.375"));
+    // Beyond 1e15 no number format can help; scientific is the only sane display,
+    // so a finding would be noise.
+    row.Append(NumberCell("H1", "5.556714093664954E+31"));
+    // An EXPLICIT format is the other scan's territory, never this one.
+    row.Append(NumberCell("I1", "1234567890123", 1));
+    // Zero and small values are never candidates.
+    row.Append(NumberCell("J1", "0"));
+    row.Append(NumberCell("K1", "3.14"));
+    wsPart.Worksheet = new Worksheet(new SheetData(row));
+    wsPart.Worksheet.Save();
+
+    wbPart.Workbook.AppendChild(new Sheets(new Sheet
+    {
+        Name = "Sheet1",
+        SheetId = 1,
+        Id = wbPart.GetIdOfPart(wsPart)
+    }));
+    wbPart.Workbook.Save();
+}
+
+static void VerifyGeneralPrecisionWorkbook(string path)
+{
+    string[] expectedPaths = ["/Sheet1/C1", "/Sheet1/D1", "/Sheet1/E1"];
+
+    using var handler = new ExcelHandler(path, editable: false);
+    var issues = handler.ViewAsIssues()
+        .Where(issue => issue.Subtype == GeneralPrecisionSubtype)
+        .ToList();
+    AssertPaths(expectedPaths, issues.Select(issue => issue.Path), "general precision scan");
+
+    foreach (var issue in issues)
+    {
+        Assert(issue.Type == IssueType.Format, $"{issue.Path} should use the Format bucket");
+        Assert(issue.Severity == IssueSeverity.Warning, $"{issue.Path} should be a warning");
+        Assert(issue.Message.Contains("General precision loss", StringComparison.Ordinal),
+            $"{issue.Path} should name the defect");
+        // The remedy is a number format, never a width — that distinction is
+        // the whole reason this is a separate family from numeric_overflow.
+        var suggestion = issue.Suggestion ?? "";
+        Assert(suggestion.Contains("numberFormat", StringComparison.Ordinal),
+            $"{issue.Path} should suggest a number format");
+        Assert(!suggestion.Contains("suggest.width", StringComparison.Ordinal),
+            $"{issue.Path} must not suggest a width");
+    }
+
+    // The two families are disjoint: numeric_overflow requires an explicit
+    // format, this one requires General, so no cell is reported twice.
+    var overflowPaths = handler.ViewAsIssues()
+        .Where(issue => issue.Subtype == NumericOverflowSubtype)
+        .Select(issue => issue.Path)
+        .ToHashSet(StringComparer.Ordinal);
+    foreach (var issue in issues)
+        Assert(!overflowPaths.Contains(issue.Path),
+            $"{issue.Path} reported by both numeric_overflow and general_precision_loss");
+
+    // Exact-subtype and bucket requests reach the same findings.
+    AssertPaths(expectedPaths,
+        handler.ViewAsIssues(GeneralPrecisionSubtype).Select(issue => issue.Path),
+        "general precision exact subtype");
+    AssertPaths(expectedPaths,
+        handler.ViewAsIssues("format")
+            .Where(issue => issue.Subtype == GeneralPrecisionSubtype)
+            .Select(issue => issue.Path),
+        "general precision format bucket");
+
+    Assert(handler.ViewAsIssues(GeneralPrecisionSubtype, limit: 1).Count == 1,
+        "general precision scan should honor --limit");
+}
+
+// A workbook with no stylesheet cannot carry a number format, so every cell in
+// it is General. Bailing out on a missing stylesheet (as the width-based scan
+// must) would blind this check to exactly that case.
+static void CreateStylelessFixture(string path)
+{
+    using var doc = SpreadsheetDocument.Create(path, SpreadsheetDocumentType.Workbook);
+    var wbPart = doc.AddWorkbookPart();
+    wbPart.Workbook = new Workbook();
+    var wsPart = wbPart.AddNewPart<WorksheetPart>();
+    var row = new Row { RowIndex = 1 };
+    row.Append(NumberCell("A1", "1234567890123"));
+    row.Append(NumberCell("B1", "42"));
+    wsPart.Worksheet = new Worksheet(new SheetData(row));
+    wsPart.Worksheet.Save();
+    wbPart.Workbook.AppendChild(new Sheets(new Sheet
+    {
+        Name = "Sheet1",
+        SheetId = 1,
+        Id = wbPart.GetIdOfPart(wsPart)
+    }));
+    wbPart.Workbook.Save();
+}
+
+static void VerifyStylelessWorkbook(string path)
+{
+    using var handler = new ExcelHandler(path, editable: false);
+    AssertPaths(["/Sheet1/A1"],
+        handler.ViewAsIssues()
+            .Where(issue => issue.Subtype == GeneralPrecisionSubtype)
+            .Select(issue => issue.Path),
+        "styleless workbook is all-General");
 }

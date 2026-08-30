@@ -746,6 +746,31 @@ public partial class ExcelHandler
             }
         }
 
+        // General-formatted numbers past Excel's 11-significant-digit display
+        // cap. Width-independent, so it is a separate family from the fit scan
+        // above and carries a number-format suggestion instead of a width one.
+        if (ShouldScan(Core.IssueSubtypes.GeneralPrecisionLoss, IssueType.Format))
+        {
+            int? remaining = limit.HasValue
+                ? Math.Max(0, limit.Value - issues.Count)
+                : null;
+            foreach (var finding in CheckAllGeneralPrecisionLoss(remaining))
+            {
+                if (limit.HasValue && issues.Count >= limit.Value) break;
+                issues.Add(new DocumentIssue
+                {
+                    Id = $"N{++issueNum}",
+                    Type = IssueType.Format,
+                    Subtype = Core.IssueSubtypes.GeneralPrecisionLoss,
+                    Severity = IssueSeverity.Warning,
+                    Path = finding.Path,
+                    Message = finding.Message,
+                    Context = finding.Context,
+                    Suggestion = finding.Suggestion
+                });
+            }
+        }
+
         // Defined names whose body references a sheet that no longer exists.
         // Excel persists the stale ref (or writes #REF!) and silently returns
         // 0 in any formula using the name — see ResolveSheetCellResult. The
