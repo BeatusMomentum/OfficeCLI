@@ -24,6 +24,12 @@ public static class IssueSubtypes
     public const string DefinedNameBroken = "definedname_broken";
     public const string DefinedNameTargetMissing = "definedname_target_missing";
     public const string BrokenPartRef = "broken_part_ref";
+    /// <summary>xlsx-only: a visible numeric/date cell with an explicit,
+    /// width-stable number format cannot fit its formatted value in the visible
+    /// column budget. General and unresolved formats are intentionally skipped
+    /// because Excel can adapt their display to the available width. Format
+    /// bucket, Warning.</summary>
+    public const string NumericOverflow = "numeric_overflow";
     /// <summary>pptx-only: notesSlide raw-set passthrough references an
     /// rId (<c>r:embed</c> / <c>r:link</c>) the dump pass cannot reproduce
     /// on the replay target (e.g. a non-image rel attached to a NotesSlidePart
@@ -66,12 +72,11 @@ public static class IssueSubtypes
         SlideFieldNotEvaluated, NotesUnresolvedRid, LowContrast,
         ChartSeriesRefMissingSheet, ChartCacheStale,
         DefinedNameBroken, DefinedNameTargetMissing,
-        BrokenPartRef,
+        BrokenPartRef, NumericOverflow,
     };
 
-    /// <summary>Subtypes that are scanned by default and surface under
-    /// <c>--type content</c>. Opt-in subtypes (currently only
-    /// <see cref="ChartCacheStale"/>) require an exact-name request.</summary>
+    /// <summary>Subtypes that require an exact-name request rather than being
+    /// scanned by default or via their broad issue bucket.</summary>
     public static readonly string[] OptInSubtypes = new[] { ChartCacheStale };
 
     /// <summary>One-line summary suitable for the CLI <c>--type</c> help
@@ -83,11 +88,11 @@ public static class IssueSubtypes
         return "Issue type filter. Broad buckets: "
             + string.Join(", ", BucketNames)
             + " (alias " + string.Join(", ", BucketAliases) + "). "
-            + "Subtypes (Content bucket, returned by default and via --type content): "
+            + "Subtypes (returned by default and via their matching broad bucket): "
             + string.Join(", ", defaults) + ". "
             + "Opt-in only (request by exact name; not included in --type content): "
             + string.Join(", ", OptInSubtypes) + ". "
-            + "Subtypes are format-specific — formula_* / chart_* / definedname_* apply to xlsx, "
+            + "Subtypes are format-specific — formula_* / chart_* / definedname_* / numeric_overflow apply to xlsx, "
             + "field_* to docx, slide_field_* / notes_unresolved_rid / broken_part_ref / low_contrast to pptx; requesting a subtype that does not apply to "
             + "the queried file returns count=0 (not an error). "
             + "All values are case-insensitive and surrounding whitespace is trimmed.";
