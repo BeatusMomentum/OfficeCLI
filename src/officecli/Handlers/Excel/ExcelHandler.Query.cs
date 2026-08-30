@@ -290,7 +290,8 @@ public partial class ExcelHandler
             {
                 // CONSISTENCY(scheme-color): echo back the symbolic name
                 // (e.g. "accent1") instead of the numeric theme index.
-                var schemeName = ParseHelpers.ExcelThemeIndexToName(tabColor.Theme.Value);
+                var schemeName = ParseHelpers.ExcelThemeNameWithTint(
+                    tabColor.Theme.Value, tabColor.Tint?.Value);
                 if (schemeName != null) sheetNode.Format["tabColor"] = schemeName;
             }
 
