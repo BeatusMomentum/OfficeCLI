@@ -61,6 +61,44 @@ internal static class NumericText
         new(@"^\s*[+-]?\d+,\d+\s*$", RegexOptions.Compiled);
 
     /// <summary>
+    /// Rewrite a number written with a decimal COMMA into the invariant form, or
+    /// fail. Only used when the caller has explicitly declared that convention
+    /// (<c>import --decimal ','</c>) — the default never guesses, because "1,234"
+    /// is 1234 under one convention and 1.234 under the other and the text alone
+    /// cannot say which.
+    ///
+    /// Declaring a decimal comma also settles the group separator: it becomes
+    /// '.', and the same three-digit rule applies to it. So "1.234,5" is
+    /// 1234.5 and "1,5" is 1.5, while "1.5" is NOT a number under this
+    /// convention (a one-digit group) and stays text.
+    /// </summary>
+    public static bool TryRewriteCommaDecimal(string text, out string invariant)
+    {
+        invariant = text;
+        var t = text.Trim();
+        if (t.Length == 0) return false;
+        if (t.Count(c => c == ',') > 1) return false;
+
+        int comma = t.IndexOf(',');
+        // Every '.' must be a well-formed thousands group, and none may follow
+        // the decimal comma.
+        for (int i = t.IndexOf('.'); i >= 0; i = t.IndexOf('.', i + 1))
+        {
+            if (comma >= 0 && i > comma) return false;
+            if (i == 0 || !char.IsAsciiDigit(t[i - 1])) return false;
+            if (i + 3 >= t.Length) return false;
+            for (int k = 1; k <= 3; k++)
+                if (!char.IsAsciiDigit(t[i + k])) return false;
+            if (i + 4 < t.Length && char.IsAsciiDigit(t[i + 4])) return false;
+        }
+        if (comma == 0 || (comma > 0 && !char.IsAsciiDigit(t[comma - 1]))) return false;
+        if (comma >= 0 && (comma + 1 >= t.Length || !char.IsAsciiDigit(t[comma + 1]))) return false;
+
+        invariant = t.Replace(".", "").Replace(',', '.');
+        return true;
+    }
+
+    /// <summary>
     /// <c>double.TryParse</c> with <see cref="NumberStyles.Any"/> and the
     /// invariant culture, minus the malformed-grouping spellings .NET would
     /// otherwise accept. Drop-in replacement for that call at every site that

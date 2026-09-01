@@ -1115,9 +1115,15 @@ static partial class CommandBuilder
                 if (item.Text == null)
                     throw new ArgumentException("'import' command requires 'text' field with the CSV/TSV content.");
                 // CONSISTENCY(import-vocabulary): props mirror the standalone
-                // command's options — format=csv|tsv, header, start-cell.
+                // command's options — format=csv|tsv, delimiter, decimal, header,
+                // start-cell. Keep this list in step with CommandBuilder.Import.cs;
+                // a prop missing here is a silently different batch behaviour.
                 char importDelim = ',';
-                if (props.TryGetValue("format", out var importFmt) && !string.IsNullOrEmpty(importFmt))
+                if (props.TryGetValue("delimiter", out var importDelimRaw) && !string.IsNullOrEmpty(importDelimRaw))
+                {
+                    importDelim = ParseImportDelimiter(importDelimRaw);
+                }
+                else if (props.TryGetValue("format", out var importFmt) && !string.IsNullOrEmpty(importFmt))
                 {
                     importDelim = importFmt.ToLowerInvariant() switch
                     {
@@ -1133,7 +1139,11 @@ static partial class CommandBuilder
                     ? importSc
                     : props.TryGetValue("startcell", out var importSc2) && !string.IsNullOrEmpty(importSc2)
                         ? importSc2 : "A1";
-                return importXl.Import(importParent, item.Text, importDelim, importHeader, importStart);
+                var importDecimal = ParseImportDecimal(
+                    props.TryGetValue("decimal", out var importDec) ? importDec : null, importDelim);
+                if (LikelyWrongDelimiterWarning(item.Text, importDelim) is { } importWarn)
+                    Console.Error.WriteLine(importWarn);
+                return importXl.Import(importParent, item.Text, importDelim, importHeader, importStart, importDecimal);
             }
             case "remove":
             {
