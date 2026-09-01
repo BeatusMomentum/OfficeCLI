@@ -280,8 +280,11 @@ public partial class ExcelHandler
             return false;
         }
 
-        // Number (integer or decimal)
-        if (double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var numVal)
+        // Number (integer or decimal). HasValidThousandsGrouping keeps "1,5"
+        // out — AllowThousands would read it as 15, silently 10x-ing every
+        // decimal-comma value in a de-DE / ru-RU CSV.
+        if (HasValidThousandsGrouping(value)
+            && double.TryParse(value, NumberStyles.Any, CultureInfo.InvariantCulture, out var numVal)
             && double.IsFinite(numVal)) // "Infinity"/"NaN" parse but have no OOXML numeric form — fall through to string
         {
             // Preserve the literal digits when the input is already a plain
