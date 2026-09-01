@@ -654,30 +654,9 @@ public partial class ExcelHandler
             : parsed.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// Guard for every numeric AUTO-DETECTION on a cell value: true when the
-    /// text carries no comma, or only well-formed thousands separators (exactly
-    /// three digits after each, digits before, none past the decimal point).
-    ///
-    /// .NET's AllowThousands does not check group SIZE, so "1,5" parses as 15
-    /// and "2,75" as 275 — a silent 10x/100x corruption on any de-DE / ru-RU
-    /// spreadsheet, where those spellings mean 1.5 and 2.75. Which was meant is
-    /// unknowable from the text alone, so a malformed grouping is not a number
-    /// and the value stays a string — the verdict the explicit `type=number`
-    /// path already gives it ("Cannot store '1,5' as number"). Genuine
-    /// thousands spellings ("1,234", "1,234,567", "1,234.5") still parse.
+    /// Guard for every numeric AUTO-DETECTION on a cell value — see
+    /// <see cref="Core.NumericText"/> for why "1,5" must not become 15.
     /// </summary>
     internal static bool HasValidThousandsGrouping(string text)
-    {
-        int dot = text.IndexOf('.');
-        for (int i = text.IndexOf(','); i >= 0; i = text.IndexOf(',', i + 1))
-        {
-            if (dot >= 0 && i > dot) return false;                       // 1.234,5
-            if (i == 0 || !char.IsAsciiDigit(text[i - 1])) return false; // ",5" / "-,5"
-            if (i + 3 >= text.Length) return false;                      // fewer than 3 after
-            for (int k = 1; k <= 3; k++)
-                if (!char.IsAsciiDigit(text[i + k])) return false;
-            if (i + 4 < text.Length && char.IsAsciiDigit(text[i + 4])) return false; // 4+
-        }
-        return true;
-    }
+        => Core.NumericText.HasValidThousandsGrouping(text);
 }
