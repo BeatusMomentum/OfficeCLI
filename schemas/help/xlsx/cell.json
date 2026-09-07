@@ -284,12 +284,15 @@
     },
     "phonetic": {
       "type": "string",
-      "description": "phonetic guide text from SST PhoneticRun. Emitted only when present.",
-      "add": false,
-      "set": false,
+      "description": "phonetic guide text (furigana / CJK ruby) carried as the shared string's <rPh> run. Setting it promotes the cell's base text into the shared-string table and stamps a single reading spanning the whole text; the worksheet's default <phoneticPr> is created if absent.",
+      "add": true,
+      "set": true,
       "get": true,
       "readback": "phonetic string",
-      "enforcement": "report"
+      "enforcement": "report",
+      "examples": [
+        "--prop phonetic=コウモク"
+      ]
     },
     "quotePrefix": {
       "type": "bool",
