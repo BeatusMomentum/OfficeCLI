@@ -74,6 +74,8 @@ static partial class CommandBuilder
                 // fed a BOM'd CSV put a stray U+FEFF inside the first header
                 // cell while `import --file` on the same bytes did not.
                 csvContent = StripBom(StdIn.ReadToEnd());
+                if (csvContent.Length >= 4)
+                    RejectBinaryImportSource(csvContent[0], csvContent[1], csvContent[2], csvContent[3], "on stdin");
             }
             else if (source != null)
             {
@@ -82,6 +84,7 @@ static partial class CommandBuilder
                     {
                         Code = "file_not_found"
                     };
+                RejectBinaryImportSourceFile(source.FullName);
                 csvContent = File.ReadAllText(source.FullName, Encoding.UTF8);
             }
             else
@@ -217,6 +220,48 @@ static partial class CommandBuilder
                 + $"import as a single column. Pass --delimiter '{Show(candidate)}' if so.";
         }
         return null;
+    }
+
+    /// <summary>
+    /// Issue #362: `import` reads CSV/TSV, but the natural mistake is to hand it a
+    /// real workbook ("import this sheet from that .xlsx"). The container's bytes
+    /// then went to the CSV reader and failed deep in cell validation with
+    /// "cell value at A1 contains XML-illegal control character U+0003 at
+    /// position 2" — the zip magic PK\x03\x04 read as text. Detect the container
+    /// up-front and say what to do instead.
+    /// </summary>
+    private static void RejectBinaryImportSourceFile(string path)
+    {
+        byte[] head = new byte[4];
+        int read;
+        try
+        {
+            using var fs = File.OpenRead(path);
+            read = fs.Read(head, 0, 4);
+        }
+        catch { return; } // unreadable — let the normal read surface the real error
+        if (read < 4) return;
+        RejectBinaryImportSource(head[0], head[1], head[2], head[3], $"'{Path.GetFileName(path)}'");
+    }
+
+    /// <summary>Shared magic-byte verdict for the --file and --stdin import sources.</summary>
+    private static void RejectBinaryImportSource(int b0, int b1, int b2, int b3, string label)
+    {
+        string? kind =
+            (b0 == 0x50 && b1 == 0x4B && b2 == 0x03 && b3 == 0x04)
+                ? "an OOXML/zip container (.xlsx / .docx / .pptx)"
+            : (b0 == 0xD0 && b1 == 0xCF && b2 == 0x11 && b3 == 0xE0)
+                ? "a legacy OLE compound file (.xls / .doc / .ppt)"
+            : null;
+        if (kind == null) return;
+        throw new CliException(
+            $"Import source {label} is {kind}, not CSV/TSV text.")
+        {
+            Code = "unsupported_type",
+            Suggestion = "import reads CSV/TSV only. Export the sheet to CSV first "
+                + "(Excel: File > Save As > CSV UTF-8), then import that file. To copy content "
+                + "between workbooks instead, run `dump` on the source and `batch` on the target.",
+        };
     }
 
     private static Command BuildCreateCommand(Option<bool> jsonOption)
