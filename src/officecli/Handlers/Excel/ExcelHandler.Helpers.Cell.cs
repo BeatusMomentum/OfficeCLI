@@ -38,11 +38,26 @@ public partial class ExcelHandler
             $"Unknown totals-row function '{tok}'. Valid: sum, average, count, countNums, max, min, stdDev, var, none, custom.")
     };
 
+    /// <summary>
+    /// Text of a CT_Rst — a shared-string item (<c>&lt;si&gt;</c>) or an inline
+    /// string (<c>&lt;is&gt;</c>) — EXCLUDING its <c>&lt;rPh&gt;</c> phonetic
+    /// guide. Issue #343: <c>InnerText</c> concatenates the guide into the value,
+    /// so a Japanese cell read back as "項目コウモク" instead of "項目". The guide
+    /// annotates the base text rather than being part of it, and is surfaced
+    /// separately as <c>Format["phonetic"]</c>. Both SDK types derive from
+    /// RstType, so every cell-text read shares this one rule.
+    /// </summary>
+    internal static string RstTextWithoutPhonetic(RstType? rst)
+        => rst == null
+            ? ""
+            : rst.Text?.Text
+                ?? string.Concat(rst.Elements<Run>().Select(r => r.Text?.Text ?? ""));
+
     private string GetCellDisplayValue(Cell cell, Core.FormulaEvaluator? evaluator = null)
     {
         if (cell.DataType?.Value == CellValues.InlineString)
         {
-            return cell.InlineString?.InnerText ?? "";
+            return RstTextWithoutPhonetic(cell.InlineString);
         }
 
         var value = cell.CellValue?.Text ?? "";
@@ -53,16 +68,7 @@ public partial class ExcelHandler
             if (sst?.SharedStringTable != null && int.TryParse(value, out int idx))
             {
                 var item = sst.SharedStringTable.Elements<SharedStringItem>().ElementAtOrDefault(idx);
-                if (item != null)
-                {
-                    // CT_Rst.InnerText also includes <rPh> phonetic-guide text.
-                    // That text annotates the base value; it is not part of the
-                    // ordinary cell content. Read only the direct <t> value or
-                    // rich-text <r><t> runs, while BuildCellNode continues to
-                    // expose the guide separately as Format["phonetic"].
-                    return item.Text?.Text
-                        ?? string.Concat(item.Elements<Run>().Select(r => r.Text?.Text ?? ""));
-                }
+                if (item != null) return RstTextWithoutPhonetic(item);
             }
         }
 

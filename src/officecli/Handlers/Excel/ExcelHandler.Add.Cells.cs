@@ -1239,7 +1239,7 @@ public partial class ExcelHandler
             // first run to a cell that already had a value threw the value away
             // (e.g. value="Hello World" + add run "Hi" → cell became just "Hi").
             string? runExistingText = runCell.DataType?.Value == CellValues.InlineString
-                ? runCell.InlineString?.InnerText
+                ? RstTextWithoutPhonetic(runCell.InlineString)
                 : runCell.CellValue?.Text;
 
             runSsi = new SharedStringItem();
