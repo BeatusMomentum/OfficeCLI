@@ -1135,7 +1135,7 @@ public partial class WordHandler
                 // style id does not exist in the styles part — opening
                 // such a doc in Word shows a "style not found" badge.
                 if (warnings != null && !StyleIdExists(value))
-                    warnings.Add($"style '{value}' not found in styles part — will be referenced as-is");
+                    warnings.Add(StyleNotFoundWarning(value));
                 pProps.ParagraphStyleId = new ParagraphStyleId { Val = value };
                 return true;
             case "stylename":

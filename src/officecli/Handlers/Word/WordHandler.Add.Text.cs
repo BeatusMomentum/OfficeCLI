@@ -64,7 +64,7 @@ public partial class WordHandler
             // warn (advisory, non-fatal) when the style id is not defined
             // in the styles part; still store the ref (lenient-input).
             if (!StyleIdExists(style))
-                LastAddWarnings.Add($"style '{style}' not found in styles part — will be referenced as-is");
+                LastAddWarnings.Add(StyleNotFoundWarning(style));
             pProps.ParagraphStyleId = new ParagraphStyleId { Val = style };
         }
         else if (properties.TryGetValue("styleName", out var styleName)
