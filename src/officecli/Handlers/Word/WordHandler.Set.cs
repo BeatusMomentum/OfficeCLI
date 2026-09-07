@@ -1163,11 +1163,20 @@ public partial class WordHandler
                 // CONSISTENCY(lenient-spacing): mirror Add — accept cm/in/pt/twips via SpacingConverter.
                 // BUG-DUMP-NEGIND: signed.
                 indentL.Left = SpacingConverter.ParseWordSpacingSigned(value).ToString();
+                // BUG-IND-ALIAS (#367): w:start is the ISO/strict spelling of
+                // w:left. A source that uses it (Google Docs / Word-for-Mac
+                // exports) kept the OLD w:start alongside our new w:left, so the
+                // element carried two conflicting indents; whichever one a later
+                // normalizing save collapses decides the result, which looked
+                // like the indent randomly disappearing. Clear the alias, same
+                // way firstLine/hanging clear each other below.
+                indentL.Start = null;
                 return true;
             case "rightindent" or "indentright":
                 var indentR = pProps.Indentation ?? (pProps.Indentation = new Indentation());
                 // BUG-DUMP-NEGIND: signed.
                 indentR.Right = SpacingConverter.ParseWordSpacingSigned(value).ToString();
+                indentR.End = null; // BUG-IND-ALIAS (#367): w:end is ISO for w:right.
                 return true;
             case "hangingindent" or "hanging":
                 var indentH = pProps.Indentation ?? (pProps.Indentation = new Indentation());
