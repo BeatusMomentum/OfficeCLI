@@ -374,7 +374,9 @@ public partial class PowerPointHandler
             // subsequent real items number continuously: 1.,2. not 3.,4.). The same
             // hasVisibleText/hasVisibleField notion is reused below for the &nbsp;
             // empty-line placeholder.
-            var hasMath = para.OuterXml.Contains("oMath");
+            // Match the element tag, not the bare word: a run whose TEXT says
+            // "oMath" (escaped as &lt;m:oMath in OuterXml) must not count as math.
+            var hasMath = para.OuterXml.Contains("<m:oMath");
             var runs = para.Elements<Drawing.Run>().ToList();
             bool hasVisibleField = para.Elements<Drawing.Field>()
                 .Any(f => !string.IsNullOrEmpty(ResolveFieldText(f, slideNumber)));
@@ -629,13 +631,15 @@ public partial class PowerPointHandler
                         fldRun.Text = new Drawing.Text(fldText);
                         RenderRun(sb, fldRun, themeColors, paraSize, placeholderPart, themeFontFallback, fontScale, paraColor, inhBold, inhItalic, tabCtx, inhCap, inhU, inhStrike, inhSpc);
                     }
-                    else if (hasMath)
+                    else if (hasMath && child.OuterXml.Contains("<m:oMath"))
                     {
                         // Keep a14:m / AlternateContent equations at their position
                         // among runs, breaks and fields (#341). Extracting from the
                         // whole paragraph first moved every equation before its text.
                         // AlternateContent is opaque to Descendants(), so retain the
                         // XML extraction and emit every equation in this child (#228).
+                        // The child-level check keeps a:pPr / a:endParaRPr from
+                        // paying for the regex just because a sibling holds math.
                         foreach (System.Text.RegularExpressions.Match mathMatch in System.Text.RegularExpressions.Regex.Matches(child.OuterXml,
                             @"<m:oMathPara[^>]*>.*?</m:oMathPara>|<m:oMath[^>]*>.*?</m:oMath>",
                             System.Text.RegularExpressions.RegexOptions.Singleline))
