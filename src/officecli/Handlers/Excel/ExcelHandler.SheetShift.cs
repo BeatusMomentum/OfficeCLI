@@ -32,6 +32,7 @@
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
+using System.Xml.Linq;
 using Xdr = DocumentFormat.OpenXml.Drawing.Spreadsheet;
 using C = DocumentFormat.OpenXml.Drawing.Charts;
 using CX = DocumentFormat.OpenXml.Office2016.Drawing.ChartDrawing;
@@ -314,19 +315,24 @@ public partial class ExcelHandler
         var cmtList = commentsPart?.Comments?.GetFirstChild<CommentList>();
         if (cmtList != null)
         {
-            bool cmtDirty = false;
+            var commentMoves = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
             foreach (var cmt in cmtList.Elements<Comment>().ToList())
             {
                 if (cmt.Reference?.Value == null) continue;
-                var shifted = refMapper(cmt.Reference.Value);
-                if (shifted == null) { cmt.Remove(); cmtDirty = true; }
-                else if (!string.Equals(shifted, cmt.Reference.Value, StringComparison.Ordinal))
+                var oldRef = cmt.Reference.Value;
+                var shifted = refMapper(oldRef);
+                if (!string.Equals(shifted, oldRef, StringComparison.Ordinal))
                 {
-                    cmt.Reference = shifted;
-                    cmtDirty = true;
+                    commentMoves[oldRef] = shifted;
+                    if (shifted == null) cmt.Remove();
+                    else cmt.Reference = shifted;
                 }
             }
-            if (cmtDirty) commentsPart!.Comments!.Save();
+            if (commentMoves.Count > 0)
+            {
+                ApplyCommentVmlMutations(worksheet, commentMoves);
+                commentsPart!.Comments!.Save();
+            }
         }
 
         // 6e. sparklines (x14 extension list on the worksheet). Each sparkline
@@ -561,6 +567,51 @@ public partial class ExcelHandler
                 }
                 if (changed) GetWorkbook().Save();
             }
+        }
+    }
+
+    // A legacy comment's text ref and its VML Note target describe the same
+    // cell. Match shapes against ORIGINAL refs in one pass: looking up each
+    // old ref after rewriting the previous shape can shift adjacent notes twice.
+    private static void ApplyCommentVmlMutations(
+        WorksheetPart worksheet, IReadOnlyDictionary<string, string?> commentMoves)
+    {
+        XNamespace v = "urn:schemas-microsoft-com:vml";
+        XNamespace x = "urn:schemas-microsoft-com:office:excel";
+        // Follow this worksheet's relationships, not a guessed part name or
+        // the first VML part (which may belong to header/footer controls).
+        foreach (var vmlPart in worksheet.VmlDrawingParts)
+        {
+            XDocument doc;
+            using (var stream = vmlPart.GetStream(FileMode.Open, FileAccess.Read))
+                doc = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
+            bool dirty = false;
+            foreach (var shape in doc.Descendants(v + "shape").ToList())
+            {
+                var data = shape.Element(x + "ClientData");
+                if (data == null || (string?)data.Attribute("ObjectType") != "Note") continue;
+                var row = data.Element(x + "Row");
+                var col = data.Element(x + "Column");
+                if (row == null || col == null
+                    || !int.TryParse(row.Value, out var r) || r < 0 || r >= ExcelMaxRow
+                    || !int.TryParse(col.Value, out var c) || c < 0 || c >= ExcelMaxCol)
+                    continue;
+                var oldRef = $"{IndexToColumnName(c + 1)}{r + 1}";
+                if (!commentMoves.TryGetValue(oldRef, out var shifted)) continue;
+                if (shifted == null) shape.Remove();
+                else
+                {
+                    var (colName, rowNum) = ParseCellReference(shifted);
+                    row.Value = (rowNum - 1).ToString();
+                    col.Value = (ColumnNameToIndex(colName) - 1).ToString();
+                }
+                // Keep the popup's custom Anchor/style and unrelated controls;
+                // Row/Column identify the comment cell, not the box geometry.
+                dirty = true;
+            }
+            if (!dirty) continue;
+            using var output = vmlPart.GetStream(FileMode.Create, FileAccess.Write);
+            doc.Save(output, SaveOptions.DisableFormatting);
         }
     }
 
