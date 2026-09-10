@@ -573,6 +573,13 @@ public partial class ExcelHandler
     // A legacy comment's text ref and its VML Note target describe the same
     // cell. Match shapes against ORIGINAL refs in one pass: looking up each
     // old ref after rewriting the previous shape can shift adjacent notes twice.
+    //
+    // The popup box's 8-number Anchor (LeftCol, LeftOff, TopRow, TopOff,
+    // RightCol, RightOff, BottomRow, BottomOff) is translated by the same
+    // row/col delta as the cell — that is what Excel itself does when a
+    // note's cell is displaced, so the box keeps its size and its position
+    // relative to the cell instead of being left hovering over the old row.
+    // Offsets and unrelated controls (OLE, form buttons) are untouched.
     private static void ApplyCommentVmlMutations(
         WorksheetPart worksheet, IReadOnlyDictionary<string, string?> commentMoves)
     {
@@ -583,8 +590,19 @@ public partial class ExcelHandler
         foreach (var vmlPart in worksheet.VmlDrawingParts)
         {
             XDocument doc;
-            using (var stream = vmlPart.GetStream(FileMode.Open, FileAccess.Read))
+            try
+            {
+                using var stream = vmlPart.GetStream(FileMode.Open, FileAccess.Read);
                 doc = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
+            }
+            catch (System.Xml.XmlException)
+            {
+                // Externally-authored VML that is not well-formed XML: the
+                // comment refs have still been shifted; leave this part as-is
+                // rather than fail the whole row/column operation (same
+                // tolerance as RemoveCommentVmlShapeByRef).
+                continue;
+            }
             bool dirty = false;
             foreach (var shape in doc.Descendants(v + "shape").ToList())
             {
@@ -598,16 +616,26 @@ public partial class ExcelHandler
                     continue;
                 var oldRef = $"{IndexToColumnName(c + 1)}{r + 1}";
                 if (!commentMoves.TryGetValue(oldRef, out var shifted)) continue;
-                if (shifted == null) shape.Remove();
-                else
-                {
-                    var (colName, rowNum) = ParseCellReference(shifted);
-                    row.Value = (rowNum - 1).ToString();
-                    col.Value = (ColumnNameToIndex(colName) - 1).ToString();
-                }
-                // Keep the popup's custom Anchor/style and unrelated controls;
-                // Row/Column identify the comment cell, not the box geometry.
                 dirty = true;
+                if (shifted == null) { shape.Remove(); continue; }
+
+                var (colName, rowNum) = ParseCellReference(shifted);
+                int newR = rowNum - 1, newC = ColumnNameToIndex(colName) - 1;
+                row.Value = newR.ToString();
+                col.Value = newC.ToString();
+
+                var anchor = data.Element(x + "Anchor");
+                if (anchor == null) continue;
+                var parts = anchor.Value.Split(',');
+                if (parts.Length != 8) continue;
+                var nums = new int[8];
+                bool parsed = true;
+                for (int i = 0; i < 8 && parsed; i++) parsed = int.TryParse(parts[i].Trim(), out nums[i]);
+                if (!parsed) continue;
+                int dRow = newR - r, dCol = newC - c;
+                nums[0] = Math.Max(0, nums[0] + dCol); nums[4] = Math.Max(0, nums[4] + dCol);
+                nums[2] = Math.Max(0, nums[2] + dRow); nums[6] = Math.Max(0, nums[6] + dRow);
+                anchor.Value = string.Join(", ", nums);
             }
             if (!dirty) continue;
             using var output = vmlPart.GetStream(FileMode.Create, FileAccess.Write);
