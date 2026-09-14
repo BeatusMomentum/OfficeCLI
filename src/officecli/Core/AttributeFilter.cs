@@ -947,15 +947,27 @@ internal static class AttributeFilter
         // ' "            : Excel-quoted sheet names ('My Data'!row)
         // / [ :          : path form, bare predicate, pseudo-class
         // * . # @ $ (    : wildcard / CSS-style heads left to the handlers
-        if (char.IsLetterOrDigit(c) || c == '_' || c == '\'' || c == '"'
+        if (!(char.IsLetterOrDigit(c) || c == '_' || c == '\'' || c == '"'
             || c == '/' || c == '[' || c == ':' || c == '*' || c == '.' || c == '#'
-            || c == '@' || c == '$' || c == '(')
-            return;
-        throw new CliException($"Malformed selector: \"{selector}\" does not start with an element name, a cell reference or a path.")
-        {
-            Code = "invalid_selector",
-            Suggestion = "Start with an element type, e.g. cell[value>5], shape[text~=Hello], p[bold=true], or a path like /Sheet1/A1."
-        };
+            || c == '@' || c == '$' || c == '('))
+            throw new CliException($"Malformed selector: \"{selector}\" does not start with an element name, a cell reference or a path.")
+            {
+                Code = "invalid_selector",
+                Suggestion = "Start with an element type, e.g. cell[value>5], shape[text~=Hello], p[bold=true], or a path like /Sheet1/A1."
+            };
+
+        // The same empty element token also arises AFTER a separator: a sheet
+        // prefix with nothing behind it (`Sheet1!`), a trailing or doubled
+        // combinator (`slide[1]>`, `slide[1]>>shape`), an empty pseudo-class
+        // (`cell:`). Look only at top-level text — a '>' or '!' inside a
+        // predicate value is literal.
+        var outside = System.Text.RegularExpressions.Regex.Replace(s, @"\[[^\]]*\]|'[^']*'|""[^""]*""", "").TrimEnd();
+        if (outside.Length > 0 && (outside[^1] is '>' or '!' or ':' or ',' || outside.Contains(">>")))
+            throw new CliException($"Malformed selector: \"{selector}\" has no element name after '{(outside.Contains(">>") ? ">>" : outside[^1].ToString())}'.")
+            {
+                Code = "invalid_selector",
+                Suggestion = "Name the element, e.g. Sheet1!cell, slide[1]>shape, cell:contains(text)."
+            };
     }
 
     public static (List<DocumentNode> Results, List<FilterDiagnostic> Warnings) FilterSelector(
