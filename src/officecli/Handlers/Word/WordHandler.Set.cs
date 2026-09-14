@@ -68,8 +68,10 @@ public partial class WordHandler
     }
 
     public List<string> Set(string path, Dictionary<string, string> properties)
+        => MarkModified(() => SetCore(path, properties));
+
+    private List<string> SetCore(string path, Dictionary<string, string> properties)
     {
-        Modified = true;
         LastSetWarnings = new List<string>();
         LastUnrecognizedLatex = new List<string>();
         LastSetNewPath = null;
