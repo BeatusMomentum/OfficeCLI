@@ -556,7 +556,7 @@ public partial class ExcelHandler
                             cell.CellFormula.Text = newText;
                             InvalidateCacheIfShiftBrokeFormula(cell, oldText, newText);
                         }
-                otherPart.Worksheet.Save();
+                GetSheet(otherPart).Save();
             }
         }
 
