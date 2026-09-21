@@ -1296,6 +1296,25 @@ static partial class CommandBuilder
             if (eqIdx == 0)
                 throw new ArgumentException(
                     $"Invalid --prop '{prop}': key is empty. Use key=value (e.g. --prop name=Title).");
+            // --prop is a multi-value option, so every following token that is
+            // not a recognized option is swallowed as a "property" — including
+            // an unknown --flag (`--prop name=S9 --zzz A2` → "--zzz", "A2") and
+            // a bare word (`--prop value=NEW BARE`). Both used to be dropped
+            // here without a word; the unknown-option guard never saw them.
+            if (eqIdx < 0)
+            {
+                if (prop.StartsWith("--") && prop.Length > 2)
+                    throw new OfficeCli.Core.CliException($"Unrecognized option '{prop}'.")
+                    {
+                        Code = "invalid_argument",
+                        Suggestion = $"Element properties are passed via --prop key=value; '{prop}' is not an option of this command."
+                    };
+                throw new OfficeCli.Core.CliException($"Invalid --prop '{prop}': expected key=value.")
+                {
+                    Code = "invalid_argument",
+                    Suggestion = $"Write --prop {prop}=<value>, or quote a value that contains spaces (--prop text=\"a b\")."
+                };
+            }
             if (eqIdx > 0)
             {
                 var key = prop[..eqIdx];
