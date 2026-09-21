@@ -167,7 +167,13 @@ public partial class ExcelHandler
                     // into a #NAME? formula, and dump→batch replay of any string
                     // cell starting with '=' (which the emitter pins via the
                     // apostrophe idiom) reproduced the corruption.
+                    // The Text number format ("@") is Excel's own "keep this as
+                    // typed" switch: an '='-leading entry into a Text-formatted
+                    // cell stays a literal string. Honor it whether the cell
+                    // already carries the format or this same call sets it.
                     var setForcedString = quotePrefixForce
+                        || existingIsTextFmt
+                        || IsTextNumberFormat(properties)
                         || (properties.TryGetValue("type", out var setTypeVal)
                             && setTypeVal.Equals("string", StringComparison.OrdinalIgnoreCase));
                     if (!setForcedString && effectiveValue.StartsWith('=') && effectiveValue.Length > 1)
@@ -216,7 +222,7 @@ public partial class ExcelHandler
                     {
                         // Check if user explicitly set type
                         var hasExplicitType = properties.Any(p => p.Key.Equals("type", StringComparison.OrdinalIgnoreCase));
-                        var explicitTypeIsString = quotePrefixForce || existingIsTextFmt || (hasExplicitType && properties
+                        var explicitTypeIsString = quotePrefixForce || existingIsTextFmt || IsTextNumberFormat(properties) || (hasExplicitType && properties
                             .Where(p => p.Key.Equals("type", StringComparison.OrdinalIgnoreCase))
                             .Select(p => p.Value?.ToLowerInvariant())
                             .Any(v => v is "string" or "str"));
