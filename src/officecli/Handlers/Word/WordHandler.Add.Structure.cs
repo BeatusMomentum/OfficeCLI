@@ -1163,9 +1163,14 @@ public partial class WordHandler
         var explicitName = properties.ContainsKey("name")
             || properties.ContainsKey("styleName")
             || properties.ContainsKey("stylename");
+        // A built-in id without an explicit name gets Word's display name for
+        // it: Word keys built-ins by name, so `add --type style id=Heading2`
+        // with an empty <w:name> is a nameless custom style to Word (body
+        // text) even though this tool's outline resolves it (issue #407).
         var styleName = properties.GetValueOrDefault("name")
                      ?? properties.GetValueOrDefault("styleName")
                      ?? properties.GetValueOrDefault("stylename")
+                     ?? BuiltInStyleName(styleId)
                      ?? (explicitName ? styleId : "");
         var styleType = properties.GetValueOrDefault("type", "paragraph").ToLowerInvariant() switch
         {
@@ -1345,7 +1350,11 @@ public partial class WordHandler
         // the decomposition's exact-element-multiset guarantee). BUG-R7-08
         // (never default the name to the id) is still honored: no name in, no name
         // out. An explicit empty name (name="" passed) still emits <w:name w:val=""/>.
-        if (explicitName)
+        // Exception (issue #407): a built-in id (Heading1, Title, …) always
+        // gets its Word display name — Word keys built-ins by name, so a
+        // nameless "Heading2" is a custom body-text style to it. A source
+        // document's built-ins carry their names, so dump→batch is unaffected.
+        if (explicitName || BuiltInStyleName(styleId) != null)
             newStyle.AppendChild(new StyleName { Val = styleName });
 
         if ((properties.TryGetValue("basedon", out var basedOn) || properties.TryGetValue("basedOn", out basedOn)) && !string.IsNullOrEmpty(basedOn))

@@ -63,7 +63,12 @@ public partial class WordHandler
             // CONSISTENCY(style-warn): mirror SetParagraph (Set.cs:642) —
             // warn (advisory, non-fatal) when the style id is not defined
             // in the styles part; still store the ref (lenient-input).
-            if (!StyleIdExists(style))
+            // A built-in id (Heading1, Title, …) that the part does not define
+            // yet is materialized with Word's own definition — a dangling
+            // reference would be body text to Word (issue #407).
+            if (TryMaterializeBuiltInStyle(style))
+                LastAddWarnings.Add($"style '{style}' was not defined in the styles part; added Word's built-in definition ('{BuiltInStyleName(style)}')");
+            else if (!StyleIdExists(style))
                 LastAddWarnings.Add(StyleNotFoundWarning(style));
             pProps.ParagraphStyleId = new ParagraphStyleId { Val = style };
         }

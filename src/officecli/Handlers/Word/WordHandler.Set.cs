@@ -1136,7 +1136,11 @@ public partial class WordHandler
                 // R7 deferred BT-4: warn (advisory, non-fatal) when the
                 // style id does not exist in the styles part — opening
                 // such a doc in Word shows a "style not found" badge.
-                if (warnings != null && !StyleIdExists(value))
+                // Built-in ids are materialized rather than left dangling
+                // (issue #407) — see Add's `style` handling.
+                if (TryMaterializeBuiltInStyle(value))
+                    warnings?.Add($"style '{value}' was not defined in the styles part; added Word's built-in definition ('{BuiltInStyleName(value)}')");
+                else if (warnings != null && !StyleIdExists(value))
                     warnings.Add(StyleNotFoundWarning(value));
                 pProps.ParagraphStyleId = new ParagraphStyleId { Val = value };
                 return true;
