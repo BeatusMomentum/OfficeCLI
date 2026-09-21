@@ -26,10 +26,12 @@ namespace OfficeCli.Core;
 /// exactly as Excel leaves them. Only the text handed to the evaluator and the
 /// readbacks is expanded.</para>
 ///
-/// <para>Known limitation: cross-sheet relative references inside a shared
-/// master (<c>Sheet2!A1</c>) are not displaced for children — ApplyCopyDelta
-/// shifts same-sheet references only. Same-sheet references, which is what
-/// shared formulas overwhelmingly contain, are handled fully.</para>
+/// <para>Every relative reference is displaced, sheet-qualified ones included
+/// (<c>Sheet2!A1</c> in the master reads <c>Sheet2!A2</c> one row down) — the
+/// fill rule applies to the formula text regardless of which sheet a
+/// reference points at. Leaving the qualified ones in place gave every child
+/// the master's value, and the save-time cache sweep then "corrected" the
+/// children's and their dependents' cached values away.</para>
 /// </summary>
 internal static class SharedFormulaResolver
 {
@@ -106,9 +108,7 @@ internal static class SharedFormulaResolver
         if (!mm.Success || !cm.Success) return null;
         var deltaCol = ColumnLettersToIndex(cm.Groups[1].Value) - ColumnLettersToIndex(mm.Groups[1].Value);
         var deltaRow = int.Parse(cm.Groups[2].Value) - int.Parse(mm.Groups[2].Value);
-        // Both sheet names empty: unqualified refs resolve to "" and match "",
-        // so they shift; sheet-qualified refs never match and stay as written.
-        return FormulaRefShifter.ApplyCopyDelta(masterText, "", "", deltaCol, deltaRow);
+        return FormulaRefShifter.ApplyCopyDeltaAllSheets(masterText, deltaCol, deltaRow);
     }
 
     private static int ColumnLettersToIndex(string letters)
