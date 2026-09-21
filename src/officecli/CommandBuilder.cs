@@ -577,10 +577,21 @@ static partial class CommandBuilder
 
     internal static int? TryResident(string filePath, Action<ResidentRequest> configure, bool json = false)
     {
+        string? lostEdits = null;
         // Step 1: does a resident own this file? Probe via the -ping pipe,
         // which is never serialized behind main-pipe commands.
         if (!ResidentClient.TryConnect(filePath, out _))
         {
+            // No live resident. If the last one died with unflushed edits, say
+            // so once (issue #328): the file on disk is the last flushed
+            // version, and the caller would otherwise be told "no pending
+            // changes". Advisory only — the command proceeds either way.
+            lostEdits = ResidentDirtyMarker.Consume(filePath);
+            if (lostEdits != null)
+            {
+                if (json) OfficeCli.Core.WarningContext.Add(lostEdits, ResidentDirtyMarker.WarningCode);
+                Console.Error.WriteLine($"WARNING: {lostEdits}");
+            }
             // No resident running — auto-start one to avoid file-lock conflicts
             // when multiple commands hit the same file in parallel.
             // Opt-out: OFFICECLI_NO_AUTO_RESIDENT=1 disables auto-start (e.g.
@@ -632,9 +643,15 @@ static partial class CommandBuilder
 
         if (json)
         {
-            // JSON mode: resident already built the envelope, just pass through
-            if (!string.IsNullOrEmpty(response.Stdout))
-                Console.WriteLine(response.Stdout);
+            // JSON mode: resident already built the envelope, just pass through —
+            // except the died-dirty advisory, which only this side knows about
+            // (the fresh resident that answered never saw the old marker), so
+            // fold it into the envelope's warnings[] here.
+            var stdout = response.Stdout;
+            if (lostEdits != null && !string.IsNullOrEmpty(stdout))
+                stdout = MergeWarningIntoEnvelope(stdout, lostEdits, ResidentDirtyMarker.WarningCode) ?? stdout;
+            if (!string.IsNullOrEmpty(stdout))
+                Console.WriteLine(stdout);
         }
         else
         {
@@ -647,6 +664,21 @@ static partial class CommandBuilder
         return response.ExitCode;
     }
 
+
+    /// <summary>Append one warning to a JSON envelope's warnings[]; null when the text is not an envelope.</summary>
+    private static string? MergeWarningIntoEnvelope(string envelopeJson, string message, string code)
+    {
+        try
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(envelopeJson) as System.Text.Json.Nodes.JsonObject;
+            if (node == null) return null;
+            var warnings = node["warnings"] as System.Text.Json.Nodes.JsonArray ?? new System.Text.Json.Nodes.JsonArray();
+            warnings.Add(new System.Text.Json.Nodes.JsonObject { ["message"] = message, ["code"] = code });
+            node["warnings"] = warnings;
+            return node.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+        }
+        catch { return null; }
+    }
 
     // ContainsNullByte — defensive guard for batch input. OOXML / xml-1.0
     // forbids U+0000 in any element or attribute content; an unfiltered NUL

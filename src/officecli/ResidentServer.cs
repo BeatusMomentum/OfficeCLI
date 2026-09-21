@@ -210,8 +210,25 @@ public class ResidentServer : IDisposable
     // PromoteToEditable(); the promotion is sticky for the resident's
     // lifetime, matching the pre-existing reopen pattern used by
     // view-screenshot/page-count/refresh.
+    // When this resident started — written into the dirty marker so a later
+    // reader can tell a dead owner from a reused pid.
+    private readonly DateTime _startedUtc = DateTime.UtcNow;
+
+    /// <summary>
+    /// Single writer for <see cref="_dirty"/>: the clean→dirty edge writes the
+    /// on-disk marker, every clean edge removes it (issue #328).
+    /// </summary>
+    private void SetDirty(bool dirty)
+    {
+        var was = _dirty;
+        _dirty = dirty;
+        if (dirty && !was) ResidentDirtyMarker.Write(_filePath, _startedUtc);
+        else if (!dirty && was) ResidentDirtyMarker.Clear(_filePath);
+    }
+
     public ResidentServer(string filePath, bool editable = false)
     {
+        ResidentDirtyMarker.SweepStale();
         _filePath = Path.GetFullPath(filePath);
         _pipeName = GetPipeName(_filePath);
         _editable = editable;
@@ -513,7 +530,7 @@ public class ResidentServer : IDisposable
             }
             else
             {
-                _dirty = false;
+                SetDirty(false);
                 LogStderr($"Autosaved {Path.GetFileName(_filePath)} (idle flush, resident still running).");
             }
         }
@@ -797,7 +814,7 @@ public class ResidentServer : IDisposable
                     var sw = System.Diagnostics.Stopwatch.StartNew();
                     _handler.Save();
                     sw.Stop();
-                    _dirty = false;
+                    SetDirty(false);
                     RecordSaveDuration(sw.Elapsed);
                 }
             }
@@ -1076,7 +1093,7 @@ public class ResidentServer : IDisposable
         // Mark the in-memory DOM as having unflushed changes. Cleared by the
         // next save/close/idle-autosave. Set here (the shared mutation prelude)
         // so single commands and batch alike are tracked.
-        _dirty = true;
+        SetDirty(true);
     }
 
     private void ExecuteCommand(ResidentRequest request)
@@ -1271,7 +1288,7 @@ public class ResidentServer : IDisposable
             var swBarrier = System.Diagnostics.Stopwatch.StartNew();
             _handler.Save();
             swBarrier.Stop();
-            _dirty = false;
+            SetDirty(false);
             RecordSaveDuration(swBarrier.Elapsed);
         }
         if (hasMutating) PromoteToEditable();
@@ -1343,7 +1360,7 @@ public class ResidentServer : IDisposable
                 wh2.DeferSave = true;
                 wh2.AdoptPendingWholeParts(preBatchWholeParts);
             }
-            _dirty = false;
+            SetDirty(false);
             rolledBack = true;
         }
 
@@ -2585,7 +2602,7 @@ public class ResidentServer : IDisposable
         var sw = System.Diagnostics.Stopwatch.StartNew();
         _handler.Save();
         sw.Stop();
-        _dirty = false;
+        SetDirty(false);
         RecordSaveDuration(sw.Elapsed);
         Console.WriteLine($"Saved {Path.GetFileName(_filePath)}");
     }
@@ -2785,6 +2802,10 @@ public class ResidentServer : IDisposable
             disposeFailed = true;
             LogStderr($"Warning: handler dispose error: {ex.Message}");
         }
+        // The final flush landed (or nothing was pending): the dirty marker
+        // has served its purpose. Left in place only when the flush itself
+        // failed — then the edits really may be gone.
+        if (!disposeFailed) SetDirty(false);
 
         // BUG-BT-R26-2 / BUG-R43: detect data loss. The original probe used
         // File.Exists(_filePath) post-Dispose — but on macOS, renaming the
