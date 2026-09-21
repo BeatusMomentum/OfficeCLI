@@ -1595,6 +1595,28 @@ public partial class PowerPointHandler
                 Suggestion = "Use a comma list (`chart, table`) for union, or filter on a single element type and post-filter."
             };
 
+        // `slide[<predicate>] > child` — a slide gate by attribute rather than
+        // by index (`slide[layout=Title] > shape`). The prefix strippers below
+        // only know `slide[N]` and bare `slide`, so this form fell through with
+        // rawType "slide" and answered with the SLIDES, predicate ignored: a
+        // gate that matched no slide still returned everything. Resolve the
+        // slide set with the shared attribute engine, then run the child
+        // selector under each matching slide's index.
+        var predSlide = Regex.Match(selector ?? "", @"^\s*slide\[(?!\d+\])([^\]]+)\]\s*>\s*(.+)$", RegexOptions.IgnoreCase);
+        if (predSlide.Success)
+        {
+            var slideExpr = Core.AttributeFilter.ParseExpr("slide[" + predSlide.Groups[1].Value + "]");
+            var gated = Core.AttributeFilter.ApplyExpr(Query("slide"), slideExpr);
+            var gatedUnion = new List<DocumentNode>();
+            foreach (var slideNode in gated)
+            {
+                var idx = Regex.Match(slideNode.Path ?? "", @"^/slide\[(\d+)\]");
+                if (!idx.Success) continue;
+                gatedUnion.AddRange(Query($"slide[{idx.Groups[1].Value}]>{predSlide.Groups[2].Value}"));
+            }
+            return gatedUnion;
+        }
+
         // Descendant combinator `A B` (whitespace-separated tokens) — only
         // `slide ...` is supported (ancestor scoping); anything else (e.g.
         // `chart table`) silently fell through to "match first token" and
