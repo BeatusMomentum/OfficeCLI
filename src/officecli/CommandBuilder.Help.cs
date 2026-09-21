@@ -295,6 +295,8 @@ static partial class CommandBuilder
             Console.WriteLine("  Aliases: word→docx, excel→xlsx, ppt/powerpoint→pptx");
             Console.WriteLine();
             Console.WriteLine("Tip: most shells expand [brackets] — quote paths: officecli get doc.docx \"/body/p[1]\"");
+            Console.WriteLine();
+            Console.WriteLine("Exit codes: 0 = landed · 1 = failed (envelope carries error) · 2 = ran with caveats (warnings[]; read `success` — it may be false when every prop was refused)");
             return 0;
         }
 
