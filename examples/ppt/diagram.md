@@ -175,7 +175,7 @@ For an **image** diagram it is a picture (`/slide[N]/picture[K]`) — move / res
 officecli view diagram.pptx outline                 # native groups on 2/4, pictures on 3 & 5–23
 officecli get diagram.pptx '/slide[2]/group[1]'      # native flowchart — shapes + connectors
 officecli get diagram.pptx '/slide[3]/picture[1]'    # image flowchart — PNG (mermaid source in alt-text)
-officecli query diagram.pptx '/slide[2]' shape       # each editable node in the native group
+officecli query diagram.pptx '/slide[2]/shape'       # each editable node in the native group
 ```
 
 ## docx parity

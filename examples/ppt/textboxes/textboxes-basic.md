@@ -229,7 +229,7 @@ officecli validate textboxes-basic.pptx
 
 ```bash
 # List shapes on slide 1
-officecli query textboxes-basic.pptx '/slide[1]' shape
+officecli query textboxes-basic.pptx '/slide[1]/shape'
 
 # Get alignment on each textbox
 officecli get textboxes-basic.pptx '/slide[1]/shape[2]'
@@ -239,7 +239,7 @@ officecli get textboxes-basic.pptx '/slide[2]/shape[1]'
 officecli get textboxes-basic.pptx '/slide[2]/shape[2]'
 
 # Inspect paragraph [1] runs on slide 3
-officecli query textboxes-basic.pptx '/slide[3]/shape[1]/p[1]' run
+officecli query textboxes-basic.pptx '/slide[3]/shape[1]/p[1]/run'
 
 # Get valign and font on slide 4
 officecli get textboxes-basic.pptx '/slide[4]/shape[1]'

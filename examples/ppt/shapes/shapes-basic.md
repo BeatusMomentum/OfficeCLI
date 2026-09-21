@@ -328,7 +328,7 @@ officecli validate shapes-basic.pptx
 
 ```bash
 # List all shapes on slide 1
-officecli query shapes-basic.pptx '/slide[1]' shape
+officecli query shapes-basic.pptx '/slide[1]/shape'
 
 # Get the full property set for the ellipse (shape[3])
 officecli get shapes-basic.pptx '/slide[1]/shape[3]'

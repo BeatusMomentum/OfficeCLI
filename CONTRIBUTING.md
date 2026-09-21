@@ -73,14 +73,14 @@ your change actually works.
 
 ```bash
 # Before my fix:
-officecli blank test.docx
-officecli add test.docx picture --prop "path=photo-2x1.png" --prop "width=10cm"
+officecli create test.docx
+officecli add test.docx /body --type picture --prop "path=photo-2x1.png" --prop "width=10cm"
 officecli query test.docx picture
 # → height: "10.2cm"  ❌ WRONG (hardcoded 4-inch default)
 
 # After my fix:
-officecli blank test.docx
-officecli add test.docx picture --prop "path=photo-2x1.png" --prop "width=10cm"
+officecli create test.docx
+officecli add test.docx /body --type picture --prop "path=photo-2x1.png" --prop "width=10cm"
 officecli query test.docx picture
 # → height: "5.0cm"   ✓ CORRECT (auto-computed from 2:1 pixel ratio)
 ```
@@ -94,8 +94,8 @@ officecli query test.docx picture
 >
 > How to trigger:
 > ```bash
-> officecli blank demo.docx
-> officecli add demo.docx paragraph --prop "style=Heading1" --prop "text=Chapter One"
+> officecli create demo.docx
+> officecli add demo.docx /body --type paragraph --prop "style=Heading1" --prop "text=Chapter One"
 > officecli watch demo.docx
 > ```
 

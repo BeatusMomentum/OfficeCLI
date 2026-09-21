@@ -354,14 +354,14 @@ officecli validate textboxes-advanced.pptx
 ```bash
 # Check per-paragraph overrides in the slide 1 textbox
 officecli get textboxes-advanced.pptx '/slide[1]/shape[2]'
-officecli query textboxes-advanced.pptx '/slide[1]/shape[2]' paragraph
+officecli query textboxes-advanced.pptx '/slide[1]/shape[2]/paragraph'
 
 # Inspect indent values on slide 2
 officecli get textboxes-advanced.pptx '/slide[2]/shape[3]'
 officecli get textboxes-advanced.pptx '/slide[2]/shape[4]'
 
 # Get per-run font data on slide 4 shape 1
-officecli query textboxes-advanced.pptx '/slide[4]/shape[1]/p[1]' run
+officecli query textboxes-advanced.pptx '/slide[4]/shape[1]/p[1]/run'
 
 # Check baseline values on slide 5
 officecli get textboxes-advanced.pptx '/slide[5]/shape[3]'

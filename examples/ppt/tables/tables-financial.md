@@ -179,8 +179,8 @@ officecli validate tables-financial.pptx
 
 ```bash
 # List tables on each slide
-officecli query tables-financial.pptx '/slide[2]' table
-officecli query tables-financial.pptx '/slide[3]' table
+officecli query tables-financial.pptx '/slide[2]/table'
+officecli query tables-financial.pptx '/slide[3]/table'
 
 # Inspect the REVENUE section header (gridSpan)
 officecli get tables-financial.pptx '/slide[2]/table[1]/tr[2]/tc[1]'
