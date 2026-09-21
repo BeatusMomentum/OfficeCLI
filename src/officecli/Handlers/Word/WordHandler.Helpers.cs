@@ -176,15 +176,22 @@ public partial class WordHandler
         if (body == null) return 0;
         foreach (var para in body.Descendants<Paragraph>())
         {
-            var rs = para.Descendants<CommentRangeStart>()
+            // A ranged comment anchors at its CommentRangeStart; a point
+            // (reference-only) comment has no range markers and anchors at the
+            // run that carries its CommentReference. The latter used to be
+            // ignored, so every point comment dumped as runStart=0 and replay
+            // appended its reference run at the paragraph end.
+            OpenXmlElement? anchor = para.Descendants<CommentRangeStart>()
                 .FirstOrDefault(r => r.Id?.Value == commentId);
-            if (rs == null) continue;
-            // Count Run elements that appear before the CommentRangeStart in
-            // document order within the same paragraph.
+            anchor ??= para.Descendants<CommentReference>()
+                .FirstOrDefault(r => r.Id?.Value == commentId)?.Parent;
+            if (anchor == null) continue;
+            // Count Run elements that appear before the anchor in document
+            // order within the same paragraph.
             int runCount = 0;
             foreach (var el in para.Descendants())
             {
-                if (ReferenceEquals(el, rs)) break;
+                if (ReferenceEquals(el, anchor)) break;
                 if (el is Run r && r.GetFirstChild<CommentReference>() == null) runCount++;
             }
             return runCount; // 0 = before any run; N = after run N (1-based)
