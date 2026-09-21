@@ -56,6 +56,12 @@ public static class IssueSubtypes
     /// skipped to keep false positives near zero. Format bucket, Warning.</summary>
     public const string LowContrast = "low_contrast";
 
+    /// <summary>pptx-only: a picture whose box aspect ratio differs from its
+    /// source pixels' (crop and stretch inset folded in) by more than 5% —
+    /// the image is being stretched. Pictures covering the whole slide are
+    /// skipped (a texture pulled over a background is intentional).</summary>
+    public const string PictureAspectDistorted = "picture_aspect_distorted";
+
     /// <summary>Broad IssueType bucket names — the canonical surface shown
     /// in error messages and help. Single-letter aliases (<see cref="BucketAliases"/>)
     /// are accepted by Validate but kept out of the user-facing list so the
@@ -78,7 +84,7 @@ public static class IssueSubtypes
     {
         FormulaNotEvaluated, FormulaCacheStale, FormulaRefMissingSheet, FormulaEvalError,
         FieldNotEvaluated, FieldCacheStale,
-        SlideFieldNotEvaluated, NotesUnresolvedRid, LowContrast,
+        SlideFieldNotEvaluated, NotesUnresolvedRid, LowContrast, PictureAspectDistorted,
         ChartSeriesRefMissingSheet, ChartCacheStale,
         DefinedNameBroken, DefinedNameTargetMissing,
         BrokenPartRef, NumericOverflow, GeneralPrecisionLoss,
@@ -102,7 +108,7 @@ public static class IssueSubtypes
             + "Opt-in only (request by exact name; not included in --type content): "
             + string.Join(", ", OptInSubtypes) + ". "
             + "Subtypes are format-specific — formula_* / chart_* / definedname_* / numeric_overflow apply to xlsx, "
-            + "field_* to docx, slide_field_* / notes_unresolved_rid / broken_part_ref / low_contrast to pptx; requesting a subtype that does not apply to "
+            + "field_* to docx, slide_field_* / notes_unresolved_rid / broken_part_ref / low_contrast / picture_aspect_distorted to pptx; requesting a subtype that does not apply to "
             + "the queried file returns count=0 (not an error). "
             + "All values are case-insensitive and surrounding whitespace is trimmed.";
     }
