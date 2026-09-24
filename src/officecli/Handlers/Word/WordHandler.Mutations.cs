@@ -552,7 +552,7 @@ public partial class WordHandler
                     {
                         var orphan = commentsRoot.Elements<Comment>()
                             .FirstOrDefault(c => c.Id?.Value == cid);
-                        orphan?.Remove();
+                        if (orphan != null) { RemoveCommentSidecars(orphan); orphan.Remove(); }
                     }
                 }
                 commentsRoot.Save();
@@ -562,6 +562,7 @@ public partial class WordHandler
         // If removing a Comment, also clean up dangling references in the body
         if (element is Comment comment && comment.Id?.Value is string commentId)
         {
+            RemoveCommentSidecars(comment);
             var body2 = _doc.MainDocumentPart?.Document?.Body;
             if (body2 != null)
             {
