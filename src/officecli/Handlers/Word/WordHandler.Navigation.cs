@@ -918,6 +918,9 @@ public partial class WordHandler
     // call. dump emits one such lookup per bookmarkEnd, so a document with N
     // bookmarks cost O(N²) (a 6940-bookmark FedRAMP SSP spent tens of seconds
     // here alone). Keyed by scope root (Body) so the map is built once.
+    // Invalidated by ClearNavChildCaches, NOT only ClearBodyChildIndex: the map
+    // covers bookmarks nested anywhere in the body, so a bookmark added under a
+    // paragraph (parent != Body) must drop it too.
     private Dictionary<OpenXmlElement, Dictionary<string, BookmarkStart>>? _bookmarkStartByIdCache;
 
     // Per-container child-index caches for the SAME O(n²) shape the body caches
@@ -942,23 +945,26 @@ public partial class WordHandler
         _bodyChildIndexCache.Clear();
         _owningSectionCache = null;
         _bodyParaByIdCache = null;
-        _bookmarkStartByIdCache = null;
         ClearNavChildCaches();
     }
 
-    // Drop the run / row / cell child-index caches. Split out from
-    // ClearBodyChildIndex because these must invalidate on a WIDER set of
-    // mutations than the body-direct caches: adding/removing a run under a
-    // PARAGRAPH (parent != Body) leaves the body child-index valid but makes a
-    // cached /<para>/r[K] list stale. Add() therefore calls this unconditionally
-    // at entry (not gated on `parent is Body`), while body-direct mutations reach
-    // it via ClearBodyChildIndex. A bare Dictionary.Clear() is O(1)-ish and dump
+    // Drop the caches that index structure BELOW the body-direct level: the
+    // run / row / cell child-index lists and the bookmark id → start map. Split
+    // out from ClearBodyChildIndex because these must invalidate on a WIDER set
+    // of mutations than the body-direct caches: adding a run, or a bookmark /
+    // bookmarkEnd, under a PARAGRAPH (parent != Body) leaves the body
+    // child-index valid but makes a cached /<para>/r[K] list — or the bookmark
+    // map, which spans every BookmarkStart in the body — stale. Add() and
+    // structural Set() reach this on EXIT via NavCacheClearGuard (not gated on
+    // `parent is Body`); Remove/Move/Swap/CopyFrom and RawSet reach it via
+    // ClearBodyChildIndex. Clearing is a bare Dictionary.Clear()/null and dump
     // (the hit-heavy path) never mutates, so over-clearing costs nothing.
     private void ClearNavChildCaches()
     {
         _navRunIndexCache.Clear();
         _navRowIndexCache.Clear();
         _navCellIndexCache.Clear();
+        _bookmarkStartByIdCache = null;
     }
 
     // Cached, filtered run list for /<container>/r[K] resolution. The filter is
