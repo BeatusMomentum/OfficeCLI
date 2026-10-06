@@ -52,7 +52,7 @@ static partial class CommandBuilder
                 "  officecli mcp uninstall <target> Unregister officecli from an MCP client",
                 "  officecli mcp list               Show registration status across all clients",
                 "",
-                "Targets: lms (LM Studio), claude (Claude Code), cursor, vscode (Copilot)",
+                "Targets: lms (LM Studio), claude (Claude Code), cursor, vscode (Copilot), opencode",
             },
             ["skills"] = new[]
             {

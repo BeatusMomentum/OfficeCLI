@@ -376,6 +376,7 @@ officecli mcp claude       # Claude Code
 officecli mcp cursor       # Cursor
 officecli mcp vscode       # VS Code / Copilot
 officecli mcp lmstudio     # LM Studio
+officecli mcp opencode     # OpenCode
 officecli mcp list         # Check registration status
 ```
 
