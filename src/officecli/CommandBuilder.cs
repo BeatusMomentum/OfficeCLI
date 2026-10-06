@@ -1311,7 +1311,7 @@ static partial class CommandBuilder
                 if (string.IsNullOrEmpty(item.Command))
                     throw new InvalidOperationException(
                         "Batch item missing required 'command' field. " +
-                        "Valid commands: get, query, set, add, remove, move, view, raw, validate. " +
+                        "Valid commands: meta, get, query, set, add, import, remove, move, swap, view, raw, raw-set, add-part, validate. " +
                         "Example: {\"command\": \"set\", \"path\": \"/Sheet1/A1\", \"props\": {\"value\": \"hello\"}}");
                 // A "command" containing whitespace is almost always a whole CLI
                 // line stuffed into the verb field (e.g. "add /slide[1] --type
@@ -1323,7 +1323,7 @@ static partial class CommandBuilder
                       + " rest in sibling fields, e.g. {\"command\":\"add\",\"parent\":\"/slide[1]\",\"type\":\"shape\","
                       + "\"props\":{...}}. Run `help batch` for the item schema."
                     : " Run `help batch` for the JSON item schema.";
-                throw new InvalidOperationException($"Unknown command: '{item.Command}'. Valid commands: get, query, set, add, remove, move, swap, view, raw, validate.{batchHint}");
+                throw new InvalidOperationException($"Unknown command: '{item.Command}'. Valid commands: meta, get, query, set, add, import, remove, move, swap, view, raw, raw-set, add-part, validate.{batchHint}");
         }
     }
 
