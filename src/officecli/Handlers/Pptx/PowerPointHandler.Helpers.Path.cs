@@ -299,7 +299,7 @@ public partial class PowerPointHandler
                 var masters = _doc.PresentationPart?.SlideMasterParts?.ToList() ?? [];
                 if (mIdx < 1 || mIdx > masters.Count)
                     throw new ArgumentException($"Slide master {mIdx} not found (total: {masters.Count})");
-                var layouts = masters[mIdx - 1].SlideLayoutParts?.ToList() ?? [];
+                var layouts = LayoutsInOrder(masters[mIdx - 1]);
                 if (lIdx < 1 || lIdx > layouts.Count)
                     throw new ArgumentException($"Slide layout {lIdx} not found under master {mIdx} (total: {layouts.Count})");
                 shapeTree = layouts[lIdx - 1].SlideLayout?.CommonSlideData?.ShapeTree;
@@ -319,8 +319,7 @@ public partial class PowerPointHandler
             else if (layoutMlMatch.Success)
             {
                 var lIdx = int.Parse(layoutMlMatch.Groups[1].Value);
-                var allLayouts = (_doc.PresentationPart?.SlideMasterParts ?? Enumerable.Empty<SlideMasterPart>())
-                    .SelectMany(m => m.SlideLayoutParts ?? Enumerable.Empty<SlideLayoutPart>()).ToList();
+                var allLayouts = _doc.PresentationPart is { } ppL ? LayoutsInOrder(ppL) : [];
                 if (lIdx < 1 || lIdx > allLayouts.Count)
                     throw new ArgumentException($"Slide layout {lIdx} not found (total: {allLayouts.Count})");
                 shapeTree = allLayouts[lIdx - 1].SlideLayout?.CommonSlideData?.ShapeTree;

@@ -2469,24 +2469,38 @@ public partial class PowerPointHandler : IDocumentHandler, Rendering.IRenderMode
     {
         var result = new List<SlideLayoutPart>();
         foreach (var mp in MastersInOrder(pp))
+            result.AddRange(LayoutsInOrder(mp));
+        return result;
+    }
+
+    /// <summary>
+    /// A single master's layouts in PowerPoint's display order: the
+    /// <c>sldLayoutIdLst</c> declaration order first, then any rel-linked but
+    /// undeclared orphan parts by URI. Every ordinal surface (add/set
+    /// <c>layout=N</c>, query/get <c>/slidelayout[N]</c>,
+    /// <c>/slidemaster[M]/slidelayout[N]</c>, raw <c>/slideLayout[N]</c>)
+    /// must enumerate through here; <c>SlideLayoutParts</c> is relationship
+    /// order and diverges once a layout has been reordered in the master.
+    /// </summary>
+    internal static List<SlideLayoutPart> LayoutsInOrder(SlideMasterPart mp)
+    {
+        var result = new List<SlideLayoutPart>();
+        var seen = new HashSet<SlideLayoutPart>();
+        var declared = mp.SlideMaster?.SlideLayoutIdList?.Elements<SlideLayoutId>()
+            ?? Enumerable.Empty<SlideLayoutId>();
+        foreach (var id in declared)
         {
-            var seen = new HashSet<SlideLayoutPart>();
-            var declared = mp.SlideMaster?.SlideLayoutIdList?.Elements<SlideLayoutId>()
-                ?? Enumerable.Empty<SlideLayoutId>();
-            foreach (var id in declared)
+            var rid = id.RelationshipId?.Value;
+            if (string.IsNullOrEmpty(rid)) continue;
+            try
             {
-                var rid = id.RelationshipId?.Value;
-                if (string.IsNullOrEmpty(rid)) continue;
-                try
-                {
-                    if (mp.GetPartById(rid) is SlideLayoutPart lp && seen.Add(lp))
-                        result.Add(lp);
-                }
-                catch { }
+                if (mp.GetPartById(rid) is SlideLayoutPart lp && seen.Add(lp))
+                    result.Add(lp);
             }
-            foreach (var lp in mp.SlideLayoutParts.OrderBy(l => l.Uri.OriginalString, StringComparer.Ordinal))
-                if (seen.Add(lp)) result.Add(lp);
+            catch { }
         }
+        foreach (var lp in mp.SlideLayoutParts.OrderBy(l => l.Uri.OriginalString, StringComparer.Ordinal))
+            if (seen.Add(lp)) result.Add(lp);
         return result;
     }
 

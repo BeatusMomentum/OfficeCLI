@@ -187,7 +187,7 @@ public partial class PowerPointHandler
                 masterNode.Format["direction"] = "rtl";
             // Add layout children
             int lIdx = 0;
-            foreach (var lp in mp.SlideLayoutParts ?? Enumerable.Empty<SlideLayoutPart>())
+            foreach (var lp in LayoutsInOrder(mp))
             {
                 lIdx++;
                 var lNode = new DocumentNode
@@ -219,7 +219,7 @@ public partial class PowerPointHandler
                 var masters = _doc.PresentationPart?.SlideMasterParts?.ToList() ?? [];
                 if (mIdx < 1 || mIdx > masters.Count)
                     throw new ArgumentException($"Slide master {mIdx} not found (total: {masters.Count})");
-                var layouts = masters[mIdx - 1].SlideLayoutParts?.ToList() ?? [];
+                var layouts = LayoutsInOrder(masters[mIdx - 1]);
                 if (lIdx < 1 || lIdx > layouts.Count)
                     throw new ArgumentException($"Slide layout {lIdx} not found under master {mIdx} (total: {layouts.Count})");
                 lp = layouts[lIdx - 1];
@@ -228,8 +228,7 @@ public partial class PowerPointHandler
             else
             {
                 var layoutIdx = int.Parse(layoutGetMatch.Groups[1].Value);
-                var allLayouts = (_doc.PresentationPart?.SlideMasterParts ?? Enumerable.Empty<SlideMasterPart>())
-                    .SelectMany(m => m.SlideLayoutParts ?? Enumerable.Empty<SlideLayoutPart>()).ToList();
+                var allLayouts = _doc.PresentationPart is { } ppL ? LayoutsInOrder(ppL) : [];
                 if (layoutIdx < 1 || layoutIdx > allLayouts.Count)
                     throw new ArgumentException($"Slide layout {layoutIdx} not found (total: {allLayouts.Count})");
                 lp = allLayouts[layoutIdx - 1];
@@ -300,7 +299,7 @@ public partial class PowerPointHandler
                 var masters = _doc.PresentationPart?.SlideMasterParts?.ToList() ?? [];
                 if (mIdx < 1 || mIdx > masters.Count)
                     throw new ArgumentException($"Slide master {mIdx} not found (total: {masters.Count})");
-                var layouts = masters[mIdx - 1].SlideLayoutParts?.ToList() ?? [];
+                var layouts = LayoutsInOrder(masters[mIdx - 1]);
                 if (lIdx < 1 || lIdx > layouts.Count)
                     throw new ArgumentException($"Slide layout {lIdx} not found under master {mIdx} (total: {layouts.Count})");
                 mlShapeTree = layouts[lIdx - 1].SlideLayout?.CommonSlideData?.ShapeTree;
@@ -325,8 +324,7 @@ public partial class PowerPointHandler
                 }
                 else
                 {
-                    var allLayouts = (_doc.PresentationPart?.SlideMasterParts ?? Enumerable.Empty<SlideMasterPart>())
-                        .SelectMany(m => m.SlideLayoutParts ?? Enumerable.Empty<SlideLayoutPart>()).ToList();
+                    var allLayouts = _doc.PresentationPart is { } ppL2 ? LayoutsInOrder(ppL2) : [];
                     if (pIdx < 1 || pIdx > allLayouts.Count)
                         throw new ArgumentException($"Slide layout {pIdx} not found (total: {allLayouts.Count})");
                     mlShapeTree = allLayouts[pIdx - 1].SlideLayout?.CommonSlideData?.ShapeTree;
@@ -1862,7 +1860,7 @@ public partial class PowerPointHandler
             int globalIdx = 0;
             foreach (var mp in _doc.PresentationPart?.SlideMasterParts ?? Enumerable.Empty<SlideMasterPart>())
             {
-                foreach (var lp in mp.SlideLayoutParts ?? Enumerable.Empty<SlideLayoutPart>())
+                foreach (var lp in LayoutsInOrder(mp))
                 {
                     globalIdx++;
                     var lNode = new DocumentNode
