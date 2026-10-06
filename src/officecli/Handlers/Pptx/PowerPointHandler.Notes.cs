@@ -22,24 +22,38 @@ public partial class PowerPointHandler
     /// the body. Every notes read/write site must go through this helper.
     /// </summary>
     private static Shape? FindNotesBodyShape(ShapeTree? spTree)
+        => FindNotesBodyShapes(spTree).FirstOrDefault();
+
+    /// <summary>
+    /// Every body placeholder on the notes slide, in document order. A notes
+    /// slide normally carries one, but decks that passed through several
+    /// tools (and files written by older OfficeCLI builds, which appended an
+    /// idx="1" body next to a foreign idx="3" one) can carry more; PowerPoint
+    /// renders all of them on the notes page.
+    /// </summary>
+    private static List<Shape> FindNotesBodyShapes(ShapeTree? spTree)
     {
-        if (spTree == null) return null;
+        var result = new List<Shape>();
+        if (spTree == null) return result;
         foreach (var shape in spTree.Elements<Shape>())
         {
             var ph = shape.NonVisualShapeProperties?.ApplicationNonVisualDrawingProperties
                 ?.GetFirstChild<PlaceholderShape>();
-            if (ph?.Type?.Value == PlaceholderValues.Body) return shape;
+            if (ph?.Type?.Value == PlaceholderValues.Body) result.Add(shape);
         }
-        return null;
+        return result;
     }
 
     private static string GetNotesText(NotesSlidePart notesPart)
     {
-        var shape = FindNotesBodyShape(notesPart.NotesSlide?.CommonSlideData?.ShapeTree);
-        if (shape == null) return "";
-        return string.Join("\n", shape.TextBody?.Elements<Drawing.Paragraph>()
-            .Select(p => string.Concat(p.Elements<Drawing.Run>().Select(r => r.Text?.Text ?? "")))
-            ?? Enumerable.Empty<string>());
+        // Concatenate every body placeholder: text left in a second body
+        // must stay visible to readers, not only to PowerPoint.
+        var lines = FindNotesBodyShapes(notesPart.NotesSlide?.CommonSlideData?.ShapeTree)
+            .SelectMany(shape => shape.TextBody?.Elements<Drawing.Paragraph>()
+                .Select(p => string.Concat(p.Elements<Drawing.Run>().Select(r => r.Text?.Text ?? "")))
+                ?? Enumerable.Empty<string>())
+            .ToList();
+        return string.Join("\n", lines);
     }
 
     /// <summary>
@@ -77,7 +91,12 @@ public partial class PowerPointHandler
         var spTree = notesPart.NotesSlide?.CommonSlideData?.ShapeTree
             ?? throw new InvalidOperationException("Notes slide has no shape tree");
 
-        var notesShape = FindNotesBodyShape(spTree);
+        var bodies = FindNotesBodyShapes(spTree);
+        var notesShape = bodies.FirstOrDefault();
+        // The text replaces the whole notes page. Surplus body placeholders
+        // would keep their old text (rendered by PowerPoint, hidden from
+        // readers that only consult the first body), so drop them.
+        foreach (var extra in bodies.Skip(1)) extra.Remove();
 
         if (notesShape == null)
         {
